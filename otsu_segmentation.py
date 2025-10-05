@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from skimage import measure, morphology
 from PIL import Image
 import os
+from scipy import signal
 
 os.makedirs("Results", exist_ok=True)
 
@@ -44,7 +45,16 @@ for image_path in image_paths:
         print(f"Warning: No circle detected in {image_path}, using full image.")
 
     # Blur
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    normalized = gray
+    conv = np.ones((9, 9))
+    averages = signal.convolve2d(normalized, conv, mode='same') / 81
+    normalized = normalized - averages
+    max_elem = np.max(normalized)
+    min_elem = np.min(normalized)
+
+    # Blur
+    blurred = cv2.GaussianBlur(normalized, (5, 5), 0).astype(np.uint8)
+
     # Otsu threshold
     threshold, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
@@ -72,18 +82,21 @@ for image_path in image_paths:
     print(result_text, end='')
     results_file.write(result_text)
 
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    fig, axes = plt.subplots(1, 4, figsize=(12, 4))
     axes[0].imshow(gray, cmap='gray')
     axes[0].set_title('Original')
     axes[0].axis('off')
-
-    axes[1].imshow(binary, cmap='gray')
-    axes[1].set_title(f'Binary (T={threshold:.1f})')
+    axes[1].imshow(blurred, cmap='gray')
+    axes[1].set_title('Blurred + NormalizEd')
     axes[1].axis('off')
 
-    axes[2].imshow(labeled, cmap='nipy_spectral')
-    axes[2].set_title(f'Colonies (n={num_colonies})')
+    axes[2].imshow(binary, cmap='gray')
+    axes[2].set_title(f'Binary (T={threshold:.1f})')
     axes[2].axis('off')
+
+    axes[3].imshow(labeled, cmap='nipy_spectral')
+    axes[3].set_title(f'Colonies (n={num_colonies})')
+    axes[3].axis('off')
 
     plt.suptitle(f'Otsu: {image_path}')
     plt.tight_layout()
