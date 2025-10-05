@@ -31,7 +31,7 @@ for image_path in image_paths:
     min_dist_to_center = float('inf')
     center = (gray.shape[1]//2, gray.shape[0]//2)
     if possible_petri_dishes is not None:
-        possible_petri_dishes = np.uint16(np.around(possible_petri_dishes))
+        possible_petri_dishes = np.uint32(np.around(possible_petri_dishes))
         for possible_petri_dish in possible_petri_dishes[0, :]:
             x, y, r = possible_petri_dish
             dist_from_center = (x-center[0])**2 + (y-center[1])**2
