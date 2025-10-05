@@ -24,7 +24,29 @@ results_file = open("Results/canny_results.txt", "w")
 for image_path in image_paths:
     # Load image
     image = np.array(Image.open(image_path))
+    # restrict field of view to central circle
+    # Use opencv to detect the location of the petri dish and mask out everything outside it
     gray = np.max(image, axis=2).astype(np.uint8)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0
+    )
+    possible_petri_dishes = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1, minDist=gray.shape[0]/8,
+                               param1=100, param2=60, minRadius=gray.shape[0]//5, maxRadius=gray.shape[0]//2)
+    most_centric_circle = None # the circle that is closest to the center of the image is the most likely petri dish
+    min_dist_to_center = float('inf')
+    center = (gray.shape[1]//2, gray.shape[0]//2)
+    if possible_petri_dishes is not None:
+        possible_petri_dishes = np.uint16(np.around(possible_petri_dishes))
+        for possible_petri_dish in possible_petri_dishes[0, :]:
+            x, y, r = possible_petri_dish
+            dist_from_center = (x-center[0])**2 + (y-center[1])**2
+            if dist_from_center < min_dist_to_center:
+                min_dist_to_center = dist_from_center
+                most_centric_circle = (x, y, r)
+        mask = np.zeros_like(gray)
+        cv2.circle(mask, (most_centric_circle[0], most_centric_circle[1]), most_centric_circle[2], 255, thickness=-1)
+        gray = cv2.bitwise_and(gray, gray, mask=mask)
+    else:
+        print(f"Warning: No circle detected in {image_path}, using full image.")
 
     # Normalize to 0-1
     gray_normalized = gray / 255.0
