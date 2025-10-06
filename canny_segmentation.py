@@ -22,19 +22,19 @@ image_paths = [
 # Open results text file
 results_file = open("Results/canny_results.txt", "w")
 
-for image_path in image_paths[1:]:
+for image_path in image_paths:
     # Load image
+    print(image_path)
     image = np.array(Image.open(image_path))
     # restrict field of view to central circle
     # Use opencv to detect the location of the petri dish and mask out everything outside it
     gray = np.max(image, axis=2).astype(np.uint8)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0
-    )
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     possible_petri_dishes = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1, minDist=gray.shape[0]/8,
                                param1=100, param2=60, minRadius=gray.shape[0]//5, maxRadius=gray.shape[0]//2)
     most_centric_circle = None # the circle that is closest to the center of the image is the most likely petri dish
     min_dist_to_center = float('inf')
-    center = np.uint64((gray.shape[1]//2, gray.shape[0]//2))
+    center = np.int32((gray.shape[1]//2, gray.shape[0]//2))
     if possible_petri_dishes is not None:
         possible_petri_dishes = np.uint64(np.around(possible_petri_dishes))
         for possible_petri_dish in possible_petri_dishes[0, :]:
@@ -95,6 +95,7 @@ for image_path in image_paths[1:]:
     # compute earth mover's distance between binary and Ground_Truth_Masks/{image_name}_mask.png
     image_name = os.path.splitext(os.path.basename(image_path))[0]
     gt_path = f"Ground_Truth_Masks/{image_name}_mask.png"
+    print(gt_path)
     gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
     if gt is None:
         print(f"Warning: No ground truth mask found for {image_name}")
@@ -103,19 +104,23 @@ for image_path in image_paths[1:]:
     # resize binary to the size of gt
     if binary.shape != gt.shape:
         binary = cv2.resize(binary, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
-    # compute earth mover's distance
-    emd = cv2.EMD(np.float32(binary.flatten()), np.float32(gt.flatten()), cv2.DIST_L2)[0]
-
     # Count colonies
     labeled = measure.label(binary)
     num_colonies = labeled.max()
     
     # Calculate properties
-    baseline = "ManualFiji Segmentation/" + Path(image_path).stem + "_fiji.tif"
-    baseline_image = np.array(Image.open(baseline))
-    assert(baseline_image.shape == binary.shape)
+    # baseline = "ManualFiji Segmentation/" + Path(image_path).stem + "_fiji.tif"
+    # baseline_image = np.array(Image.open(baseline))
+    # assert(baseline_image.shape == binary.shape)
+    # fill in the binary mask holes
+    binary = ndimage.binary_fill_holes(binary).astype(np.uint8) * 255
+    baseline_image = gt // 255
+    print(baseline_image.shape, binary.shape)
     diff = np.abs(baseline_image - binary)
     total_diff = np.sum(diff)
+    false_positive_rate = np.sum((binary == 255) & (baseline_image == 0))/np.sum(baseline_image == 0) if np.sum(baseline_image == 0) > 0 else 0
+    false_negative_rate = np.sum((binary == 0) & (baseline_image == 255))/np.sum(baseline_image == 255) if np.sum(baseline_image == 255) > 0 else 0 
+    print(f"False Positives: {false_positive_rate}, False Negatives: {false_negative_rate}")
     regions = measure.regionprops(labeled)
     areas = [r.area for r in regions]
     circularities = [(4 * np.pi * r.area) / (r.perimeter ** 2) if r.perimeter > 0 else 0 for r in regions]
@@ -126,7 +131,9 @@ for image_path in image_paths[1:]:
     result_text += f"  Colonies: {num_colonies}\n"
     result_text += f"  Avg Area: {np.mean(areas):.1f}\n"
     result_text += f"  Avg Circularity: {np.mean(circularities):.3f}\n"
-    result_text += f"  Total Diff: {total_diff:.2f}\n"
+    result_text += f"  Total Diff: {total_diff/(baseline_image.sum()):.2f}\n"
+    result_text += f"  False Positive Rate: {false_positive_rate}\n"
+    result_text += f"  False Negatives Rate: {false_negative_rate}\n"
 
     results_file.write(result_text)
     print(result_text, end='')
