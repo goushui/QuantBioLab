@@ -48,6 +48,15 @@ for image_path in image_paths:
     else:
         print(f"Warning: No circle detected in {image_path}, using full image.")
 
+    # convert the cvat annotation to a binary mask named ground truth from ManualFiji Segmentation/annotations.xml
+    gt_mask = np.zeros_like(gray)
+    # Load the CVAT annotations (this is a placeholder, implement loading as needed)
+    cvat_annotations = []  # Load your CVAT annotations here
+    for annotation in cvat_annotations:
+        # Draw the annotation on the ground truth mask
+        cv2.drawContours(gt_mask, [annotation], -1, 255, thickness=cv2.FILLED)
+
+
     # Normalize to 0-1
     gray_normalized = gray / 255.0
 
@@ -81,6 +90,19 @@ for image_path in image_paths:
     cv2.drawContours(mask, good_contours, -1, 255, -1)
     # binary = ndimage.binary_fill_holes(mask).astype(np.uint8) * 255
     binary = mask
+    # compute earth mover's distance between binary and Ground_Truth_Masks/{image_name}_mask.png
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    gt_path = f"Ground_Truth_Masks/{image_name}_mask.png"
+    gt = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+    if gt is None:
+        print(f"Warning: No ground truth mask found for {image_name}")
+        continue
+    gt = (gt > 128).astype(np.uint8) * 255
+    # resize binary to the size of gt
+    if binary.shape != gt.shape:
+        binary = cv2.resize(binary, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
+    # compute earth mover's distance
+    emd = cv2.EMD(np.float32(binary.flatten()), np.float32(gt.flatten()), cv2.DIST_L2)[0]
 
     # Count colonies
     labeled = measure.label(binary)
@@ -97,6 +119,7 @@ for image_path in image_paths:
     result_text += f"  Colonies: {num_colonies}\n"
     result_text += f"  Avg Area: {np.mean(areas):.1f}\n"
     result_text += f"  Avg Circularity: {np.mean(circularities):.3f}\n"
+    result_text += f"  Earth Mover's Distance: {emd:.2f}\n"
 
     results_file.write(result_text)
     print(result_text, end='')
@@ -126,5 +149,4 @@ for image_path in image_paths:
     image_name = os.path.splitext(os.path.basename(image_path))[0]
     plt.savefig(f"Results/canny_{image_name}.png", dpi=150, bbox_inches='tight')
     plt.close()
-
 results_file.close()
