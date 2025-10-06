@@ -81,8 +81,8 @@ for image_path in image_paths[1:]:
             if circularity > 0.5:  # Keep circular shapes
                 good_contours.append(contour)
     cv2.drawContours(mask, good_contours, -1, 255, -1)
-    # binary = ndimage.binary_fill_holes(mask).astype(np.uint8) * 255
-    binary = mask
+    binary = ndimage.binary_fill_holes(mask).astype(np.uint8) * 255
+    # binary = mask
 
     # Count colonies
     labeled = measure.label(binary)
