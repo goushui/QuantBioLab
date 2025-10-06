@@ -9,6 +9,7 @@ from skimage import measure, feature
 from scipy import ndimage
 from PIL import Image
 import os
+from pathlib import Path
 
 os.makedirs("Results", exist_ok=True)
 
@@ -21,7 +22,7 @@ image_paths = [
 # Open results text file
 results_file = open("Results/canny_results.txt", "w")
 
-for image_path in image_paths:
+for image_path in image_paths[1:]:
     # Load image
     image = np.array(Image.open(image_path))
     # restrict field of view to central circle
@@ -33,12 +34,13 @@ for image_path in image_paths:
                                param1=100, param2=60, minRadius=gray.shape[0]//5, maxRadius=gray.shape[0]//2)
     most_centric_circle = None # the circle that is closest to the center of the image is the most likely petri dish
     min_dist_to_center = float('inf')
-    center = (gray.shape[1]//2, gray.shape[0]//2)
+    center = np.uint64((gray.shape[1]//2, gray.shape[0]//2))
     if possible_petri_dishes is not None:
-        possible_petri_dishes = np.uint32(np.around(possible_petri_dishes))
+        possible_petri_dishes = np.uint64(np.around(possible_petri_dishes))
         for possible_petri_dish in possible_petri_dishes[0, :]:
             x, y, r = possible_petri_dish
             dist_from_center = (x-center[0])**2 + (y-center[1])**2
+            print(type(x), type(center[0]))
             if dist_from_center < min_dist_to_center:
                 min_dist_to_center = dist_from_center
                 most_centric_circle = (x, y, r)
@@ -107,8 +109,13 @@ for image_path in image_paths:
     # Count colonies
     labeled = measure.label(binary)
     num_colonies = labeled.max()
-
+    
     # Calculate properties
+    baseline = "ManualFiji Segmentation/" + Path(image_path).stem + "_fiji.tif"
+    baseline_image = np.array(Image.open(baseline))
+    assert(baseline_image.shape == binary.shape)
+    diff = np.abs(baseline_image - binary)
+    total_diff = np.sum(diff)
     regions = measure.regionprops(labeled)
     areas = [r.area for r in regions]
     circularities = [(4 * np.pi * r.area) / (r.perimeter ** 2) if r.perimeter > 0 else 0 for r in regions]
@@ -119,7 +126,7 @@ for image_path in image_paths:
     result_text += f"  Colonies: {num_colonies}\n"
     result_text += f"  Avg Area: {np.mean(areas):.1f}\n"
     result_text += f"  Avg Circularity: {np.mean(circularities):.3f}\n"
-    result_text += f"  Earth Mover's Distance: {emd:.2f}\n"
+    result_text += f"  Total Diff: {total_diff:.2f}\n"
 
     results_file.write(result_text)
     print(result_text, end='')
