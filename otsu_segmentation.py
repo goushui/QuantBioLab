@@ -9,6 +9,7 @@ from skimage import measure, morphology
 from PIL import Image
 import os
 from scipy import signal
+from pathlib import Path
 
 os.makedirs("Results", exist_ok=True)
 
@@ -61,7 +62,11 @@ for image_path in image_paths:
     # Clean up
     binary = morphology.remove_small_objects(binary.astype(bool), min_size=50)
     binary = morphology.remove_small_holes(binary, area_threshold=100)
-
+    baseline = "ManualFiji Segmentation/" + Path(image_path).stem + "_fiji.tif"
+    baseline_image = np.array(Image.open(baseline))
+    assert(baseline_image.shape == binary.shape)
+    diff = np.abs(baseline_image - binary)
+    total_diff = np.sum(diff)
     # Count colonies
     labeled = measure.label(binary)
     num_colonies = labeled.max()
@@ -78,6 +83,7 @@ for image_path in image_paths:
     result_text += f"  Colonies: {num_colonies}\n"
     result_text += f"  Avg Area: {np.mean(areas):.1f}\n"
     result_text += f"  Avg Circularity: {np.mean(circularities):.3f}\n"
+    result_text += f"  Total Diff: {total_diff:.2f}\n"
 
     print(result_text, end='')
     results_file.write(result_text)
