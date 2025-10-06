@@ -56,27 +56,31 @@ for image_path in image_paths:
     std = np.std(gray_normalized)
     low_thresh = max(0.08, mean - 0.5 * std)
     high_thresh = min(0.78, mean + 0.5 * std)
+    print(f"Adaptive thresholds: [{low_thresh:.3f}, {high_thresh:.3f}]")
 
     # Canny edge detection
-    edges = feature.canny(gray_normalized, sigma=2, low_threshold=low_thresh, high_threshold=high_thresh)
-    edges = edges.astype(np.uint8) * 255
+    edges = feature.canny(gray_normalized, sigma=2, low_threshold=low_thresh+0.01, high_threshold=high_thresh)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
+    edges_uint8 = (edges.astype(np.uint8)) * 255
+    closed = cv2.morphologyEx(edges_uint8, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-    contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # edges = edges.astype(np.uint8) * 255
+
+    contours, _ = cv2.findContours(closed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     # Filter shapes
+    mask = np.zeros_like(gray)
     good_contours = []
     for contour in contours:
         area = cv2.contourArea(contour)
         perimeter = cv2.arcLength(contour, True)
-        if area > 50 and perimeter > 0:
+        if area > 0 and perimeter > 0 and area < 5000:
             circularity = (4 * np.pi * area) / (perimeter ** 2)
             if circularity > 0.5:  # Keep circular shapes
                 good_contours.append(contour)
-
-    # Draw filled contours
-    binary = np.zeros_like(gray)
-    cv2.drawContours(binary, good_contours, -1, 255, thickness=cv2.FILLED)
-    binary = ndimage.binary_fill_holes(binary).astype(np.uint8) * 255
+    cv2.drawContours(mask, good_contours, -1, 255, -1)
+    # binary = ndimage.binary_fill_holes(mask).astype(np.uint8) * 255
+    binary = mask
 
     # Count colonies
     labeled = measure.label(binary)
