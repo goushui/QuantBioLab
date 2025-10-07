@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from skimage import measure, feature
 from scipy import ndimage
 from PIL import Image
+import xml.etree.ElementTree as ET
 import os
 from pathlib import Path
 
@@ -21,6 +22,44 @@ image_paths = [
 
 # Open results text file
 results_file = open("Results/canny_results.txt", "w")
+
+def get_statistics(ground_truth, prediction):
+    # Ensure binary format
+    result_text = ""
+    ground_truth = (ground_truth > 128).astype(np.uint8)
+    prediction = (prediction > 128).astype(np.uint8)
+
+    # Resize prediction to match ground truth if necessary
+    labeled = measure.label(prediction)
+    num_colonies = labeled.max()
+    if ground_truth.shape != prediction.shape:
+        prediction = cv2.resize(prediction, (ground_truth.shape[1], ground_truth.shape[0]), interpolation=cv2.INTER_NEAREST)
+    diff = np.abs(ground_truth - prediction)
+    total_diff = np.sum(diff)
+    false_positive_rate = np.sum((prediction == 255) & (ground_truth == 0))/np.sum(ground_truth == 0) if np.sum(ground_truth == 0) > 0 else 0
+    false_negative_rate = np.sum((prediction == 0) & (ground_truth == 255))/np.sum(ground_truth == 255) if np.sum(ground_truth == 255) > 0 else 0 
+    print(f"False Positives: {false_positive_rate}, False Negatives: {false_negative_rate}")
+    regions = measure.regionprops(labeled)
+    areas = [r.area for r in regions]
+    circularities = [(4 * np.pi * r.area) / (r.perimeter ** 2) if r.perimeter > 0 else 0 for r in regions]
+    # Compute false positives and false negatives
+    false_positives = np.sum((prediction == 1) & (ground_truth == 0))
+    false_negatives = np.sum((prediction == 0) & (ground_truth == 1))
+    total_ground_truth = np.sum(ground_truth == 1)
+    total_background = np.sum(ground_truth == 0)
+
+    false_positive_rate = false_positives / total_background if total_background > 0 else 0
+    false_negative_rate = false_negatives / total_ground_truth if total_ground_truth > 0 else 0
+
+    result_text = f"\n{image_path}\n"
+    result_text += f"  Colonies: {num_colonies}\n"
+    result_text += f"  Avg Area: {np.mean(areas):.1f}\n"
+    result_text += f"  Avg Circularity: {np.mean(circularities):.3f}\n"
+    result_text += f"  Total Diff: {total_diff/(baseline_image.sum()):.2f}\n"
+    result_text += f"  False Positive Rate: {false_positive_rate}\n"
+    result_text += f"  False Negatives Rate: {false_negative_rate}\n"
+
+    return result_text
 
 for image_path in image_paths:
     # Load image
@@ -92,7 +131,6 @@ for image_path in image_paths:
     cv2.drawContours(mask, good_contours, -1, 255, -1)
     # binary = ndimage.binary_fill_holes(mask).astype(np.uint8) * 255
     binary = mask
-    # compute earth mover's distance between binary and Ground_Truth_Masks/{image_name}_mask.png
     image_name = os.path.splitext(os.path.basename(image_path))[0]
     gt_path = f"Ground_Truth_Masks/{image_name}_mask.png"
     print(gt_path)
@@ -103,38 +141,18 @@ for image_path in image_paths:
     gt = (gt > 128).astype(np.uint8) * 255
     # resize binary to the size of gt
     if binary.shape != gt.shape:
-        binary = cv2.resize(binary, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
+        continue
+        # binary = cv2.resize(binary, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
     # Count colonies
-    labeled = measure.label(binary)
-    num_colonies = labeled.max()
     
-    # Calculate properties
-    # baseline = "ManualFiji Segmentation/" + Path(image_path).stem + "_fiji.tif"
-    # baseline_image = np.array(Image.open(baseline))
-    # assert(baseline_image.shape == binary.shape)
-    # fill in the binary mask holes
     binary = ndimage.binary_fill_holes(binary).astype(np.uint8) * 255
     baseline_image = gt // 255
-    print(baseline_image.shape, binary.shape)
-    diff = np.abs(baseline_image - binary)
-    total_diff = np.sum(diff)
-    false_positive_rate = np.sum((binary == 255) & (baseline_image == 0))/np.sum(baseline_image == 0) if np.sum(baseline_image == 0) > 0 else 0
-    false_negative_rate = np.sum((binary == 0) & (baseline_image == 255))/np.sum(baseline_image == 255) if np.sum(baseline_image == 255) > 0 else 0 
-    print(f"False Positives: {false_positive_rate}, False Negatives: {false_negative_rate}")
-    regions = measure.regionprops(labeled)
-    areas = [r.area for r in regions]
-    circularities = [(4 * np.pi * r.area) / (r.perimeter ** 2) if r.perimeter > 0 else 0 for r in regions]
-
+    # print(baseline_image.shape, binary.shape)
+    labeled = measure.label(binary)
+    num_colonies = labeled.max()
     # Print and save results
     result_text = f"\n{image_path}\n"
-    result_text += f"  Thresholds: [{low_thresh:.3f}, {high_thresh:.3f}]\n"
-    result_text += f"  Colonies: {num_colonies}\n"
-    result_text += f"  Avg Area: {np.mean(areas):.1f}\n"
-    result_text += f"  Avg Circularity: {np.mean(circularities):.3f}\n"
-    result_text += f"  Total Diff: {total_diff/(baseline_image.sum()):.2f}\n"
-    result_text += f"  False Positive Rate: {false_positive_rate}\n"
-    result_text += f"  False Negatives Rate: {false_negative_rate}\n"
-
+    result_text += get_statistics(baseline_image, binary)
     results_file.write(result_text)
     print(result_text, end='')
 
