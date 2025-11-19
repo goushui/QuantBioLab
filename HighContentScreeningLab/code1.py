@@ -128,7 +128,7 @@ def extract_features_TRANS(img):
 
     return feat_dict
 
-def train_classifier(feature_matrix, labels, task_desc, out_dir, min_samples=2):
+def train_classifier(feature_matrix, labels, task_desc, out_dir, filenames, min_samples=2):
     """Train RandomForest classifier and save results"""
     label_counts = pd.Series(labels).value_counts()
     valid_labels = label_counts[label_counts >= min_samples].index
@@ -174,7 +174,7 @@ def train_classifier(feature_matrix, labels, task_desc, out_dir, min_samples=2):
 
     # Save misclassifications
     errors_df = pd.DataFrame({
-        'filename': [y_te.index[i] for i in range(len(y_te)) if y_te.iloc[i] != predictions[i]],
+        'filename': [filenames[y_te.index[i]] for i in range(len(y_te)) if y_te.iloc[i] != predictions[i]],
         'true': [y_te.iloc[i] for i in range(len(y_te)) if y_te.iloc[i] != predictions[i]],
         'predicted': [predictions[i] for i in range(len(y_te)) if y_te.iloc[i] != predictions[i]]
     })
@@ -196,9 +196,10 @@ def main():
     combined_df = pd.concat([meta_df, feat_df], axis=1)
     combined_df.to_csv(os.path.join(out_dir, "features.csv"), index=False)
 
-    acc_treatment = train_classifier(feat_df, meta_df['treatment'], 'Treatment Prediction', out_dir)
-    acc_group = train_classifier(feat_df, meta_df['group'], 'Group Prediction', out_dir)
-    acc_day = train_classifier(feat_df, meta_df['day'], 'Day Prediction', out_dir)
+    filenames = os.listdir(img_dir)
+    acc_treatment = train_classifier(feat_df, meta_df['treatment'], 'Treatment Prediction', out_dir, filenames)
+    acc_group = train_classifier(feat_df, meta_df['group'], 'Group Prediction', out_dir, filenames)
+    acc_day = train_classifier(feat_df, meta_df['day'], 'Day Prediction', out_dir, filenames)
 
 if __name__ == "__main__":
     main()
