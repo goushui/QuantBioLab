@@ -42,53 +42,52 @@ def Load16SFastA(path, fraction = 1.0):
 
 def ConvertLibaryToKmerSets(library, K=2):
     
-    new_lib = {}
-    c = 0
-    for k in library.keys():
-        new_lib[k] = set()
-        if len(library[k]) < K: continue
-        for i in range(len(library[k])-K+1):
-            new_lib[k].add(library[k][i:i+K])
-        # add your code here to build the k-mer set
-        
-    return new_lib
+  new_lib = {}
+  c = 0
+  for k in library.keys():
+      new_lib[k] = set()
+      if len(library[k]) < K: continue
+      for i in range(len(library[k])-K+1):
+          new_lib[k].add(library[k][i:i+K])
+      # add your code here to build the k-mer set
+      
+  return new_lib
 
 def JaccardIndex(s1, s2):
-    numerator = float(len(s1.intersection(s2)))
-    denominator = float(len(s1.union(s2)))
-    return numerator/denominator
+  numerator = float(len(s1.intersection(s2)))
+  denominator = float(len(s1.union(s2)))
+  return numerator/denominator
 
 def KmerMatch(sequence_kmer_set, library_kmer_set):
-    best_score = 0.0
-    best_match = None
-    
-    for s, s_kmers in library_kmer_set.items():
-      score = JaccardIndex(s_kmers, sequence_kmer_set)
-      if score > best_score:
-          best_score = score
-          best_match = s
-    return best_score, best_match
+  best_score = 0.0
+  best_match = None
+  
+  for s, s_kmers in library_kmer_set.items():
+    score = JaccardIndex(s_kmers, sequence_kmer_set)
+    if score > best_score:
+        best_score = score
+        best_match = s
+  return best_score, best_match
 
 
 def AlignmentMatch(sequence, library):
-    best_score = -10000000000
-    best_match = None
-    
-    for s, seq in library.items():
-        score = alignment.local_align(sequence, seq, score=alignment.ScoreParam(10, -5, -7), print_output = False)
-        if score[0] > best_score:
-            best_score = score[0]
-            best_match = s
-    return best_score, best_match
+  best_score = -10000000000
+  best_match = None
+  for s, seq in library.items():
+      score = alignment.local_align(sequence, seq, score=alignment.ScoreParam(10, -5, -7), print_output = False)
+      if score[0] > best_score:
+          best_score = score[0]
+          best_match = s
+  return best_score, best_match
 
 def split_dataset(data, db_size=200, query_size=50):
-    data = list(data.items())
-    random.shuffle(data)
-    db_data = data[:db_size]
-    query_data = data[db_size:db_size + query_size]
-    db_data = {k: v for k, v in db_data}
-    query_data = {k: v for k, v in query_data}
-    return db_data, query_data
+  data = list(data.items())
+  random.shuffle(data)
+  db_data = data[:db_size]
+  query_data = data[db_size:db_size + query_size]
+  db_data = {k: v for k, v in db_data}
+  query_data = {k: v for k, v in query_data}
+  return db_data, query_data
 
 def compute_kmer_matches(db_data, query_data, K=2):
   db_kmers = ConvertLibaryToKmerSets(db_data, K=K)
@@ -106,21 +105,47 @@ def compute_alignment_matches(db_data, query_data):
     db_alignments[query_id] = best_alignment_score
   return db_alignments
 
+def mutate_sequence(sequence, mutation_rate=0.01, max_length=250):
+   mutated_sequence = ""
+   for base in sequence[:max_length]:
+     if random.random() < mutation_rate:
+       mutated_sequence += random.choice("ACGT")
+     else:
+       mutated_sequence += base
+   return mutated_sequence
+
+def mutate_library(library, mutation_rate=0.01, max_length=250):
+   mutated_library = {}
+   for seq_id, seq in library.items():
+     mutated_seq = mutate_sequence(seq, mutation_rate=mutation_rate, max_length=max_length)
+     mutated_library[seq_id] = mutated_seq
+   return mutated_library
     
-    
+def compute_kmer_agreement_list(db_data, query_data, kmer_sizes = [1,3,5,7,9,11,13,15,17,19]):
+  kmer_agreement = []
+  for kmer_size in kmer_sizes:
+    print(kmer_size)
+    kmer_scores = compute_kmer_matches(db_data, query_data, K=kmer_size)
+    kmer_agreement.append(sum(kmer_scores.values()) / len(kmer_scores))
+  return kmer_agreement
+
+def plot_kmer_agreement(db_data, query_data, filename):
+  kmer_sizes = [1,3,5,7,9,11,13,15,17,19]
+  kmer_agreement = compute_kmer_agreement_list(db_data, query_data, kmer_sizes=kmer_sizes)
+  _ = plt.bar(kmer_sizes, kmer_agreement)
+  plt.xlabel("KMer Size")
+  plt.ylabel("Average Score of Best")
+  plt.title("KMer Agreement Across Different KMer Sizes")
+  plt.xticks(kmer_sizes)
+  os.makedirs("results", exist_ok=True)
+  plt.savefig(os.path.join("results", filename), dpi=300)
+  plt.close()
   
 if __name__ == "__main__":
    # stuff only to run when not called via 'import' here
-   
-
-  
   fn = "bacterial_16s_genes.fa"
   sequences_16s = Load16SFastA(fn, fraction = 1.0)
-  
-  
   print ("Loaded %d 16s sequences." % len(sequences_16s))
-  
-  
   # kmer_16s_sequences = ConvertLibaryToKmerSets(sequences_16s, K=2)
   # kmer_16s_sequences = {k: v for k, v in list(kmer_16s_sequences.items())[:5]}
   # base_id, base_seq = list(kmer_16s_sequences.items())[0]
@@ -133,26 +158,21 @@ if __name__ == "__main__":
   # alignment_score, alignment_match = AlignmentMatch(base_seq, sequences_16s)
   # print ("Best alignment score:", alignment_score)
   # print ("Best alignment ID:", alignment_match)
-  
-  
   db_size = 200
   query_size = 50
   random.seed(42)
+  print(f"Generating random split with database size {db_size}, query size {query_size}...")
   db_data, query_data = split_dataset(sequences_16s, db_size=db_size, query_size=query_size)
-  kmer_sizes = [1,3,5,7,9,11,13,15,17,19]
-  kmer_agreement = []
-  for kmer_size in kmer_sizes:
-     kmer_scores = compute_kmer_matches(db_data, query_data, K=kmer_size)
-     kmer_agreement.append(sum(kmer_scores.values()) / len(kmer_scores))
-  _ = plt.bar(kmer_sizes, kmer_agreement)
-  plt.xlabel("KMer Size")
-  plt.ylabel("Average Score of Best")
-  plt.title("KMer Agreement Across Different KMer Sizes")
-  plt.xticks(kmer_sizes)
-  os.makedirs("results", exist_ok=True)
+  print("Generating mutated libraries...")
+  illumina_db = mutate_library(db_data, mutation_rate=0.01, max_length=250)
+  illumina_query = mutate_library(query_data, mutation_rate=0.01, max_length=250)
+  nanopore_db = mutate_library(db_data, mutation_rate=0.1, max_length=10000)
+  nanopore_query = mutate_library(query_data, mutation_rate=0.1, max_length=10000)
+  print("Computing kmer agreement...")
+  plot_kmer_agreement(db_data, query_data, filename="kmer_agreement.png")
+  plot_kmer_agreement(illumina_db, illumina_query, filename="illumina_kmer_agreement.png")
+  plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore_kmer_agreement.png")
   
-  plt.savefig("results/kmer_agreement.png")
-  # plt.show()
   
      
    
