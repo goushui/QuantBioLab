@@ -147,13 +147,13 @@ def compute_kmer_agreement_list(db_data, query_data, kmer_sizes = [1,3,5,7,9,11,
     kmer_agreement.append(sum(match_scores) / len(match_scores))
   return kmer_agreement
 
-def plot_kmer_agreement(db_data, query_data, filename):
+def plot_kmer_agreement(db_data, query_data, filename, local_align_cache_file = "alignment_matches.npy"):
   kmer_sizes = [1,3,5,7,9,11,13,15,17,19]
-  kmer_agreement = compute_kmer_agreement_list(db_data, query_data, kmer_sizes=kmer_sizes)
+  kmer_agreement = compute_kmer_agreement_list(db_data, query_data, kmer_sizes=kmer_sizes, local_align_cache_file=local_align_cache_file)
   _ = plt.bar(kmer_sizes, kmer_agreement)
   plt.xlabel("KMer Size")
   plt.ylabel("Average Score of Best")
-  plt.title("KMer Agreement Across Different KMer Sizes")
+  plt.title("KMer Agreement Across Different KMer Sizes" + filename)
   plt.xticks(kmer_sizes)
   os.makedirs("results", exist_ok=True)
   plt.savefig(os.path.join("results", filename), dpi=300)
@@ -187,9 +187,9 @@ if __name__ == "__main__":
   nanopore_db = mutate_library(db_data, mutation_rate=0.1, max_length=10000)
   nanopore_query = mutate_library(query_data, mutation_rate=0.1, max_length=10000)
   print("Computing kmer agreement...")
-  # plot_kmer_agreement(db_data, query_data, filename="kmer_agreement.png", local_align_cache_file="full_alignment_matches.npy")
-  # plot_kmer_agreement(illumina_db, illumina_query, filename="illumina_kmer_agreement.png", local_align_cache_file="illumina_alignment_matches.npy")
-  plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore_kmer_agreement.png", local_align_cache_file="nanopore_alignment_matches.npy")
+  plot_kmer_agreement(db_data, query_data, filename="full.png", local_align_cache_file="full_alignment_matches.npy")
+  plot_kmer_agreement(illumina_db, illumina_query, filename="illumina.png", local_align_cache_file="illumina_alignment_matches.npy")
+  plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore.png", local_align_cache_file="nanopore_alignment_matches.npy")
   
   
      
