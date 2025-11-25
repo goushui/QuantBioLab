@@ -153,7 +153,7 @@ def plot_kmer_agreement(db_data, query_data, filename, local_align_cache_file = 
   _ = plt.bar(kmer_sizes, kmer_agreement)
   plt.xlabel("KMer Size")
   plt.ylabel("Average Score of Best")
-  plt.title("KMer Agreement Across Different KMer Sizes" + filename)
+  plt.title("KMer Agreement Across Different KMer Sizes " + filename)
   plt.xticks(kmer_sizes)
   os.makedirs("results", exist_ok=True)
   plt.savefig(os.path.join("results", filename), dpi=300)
