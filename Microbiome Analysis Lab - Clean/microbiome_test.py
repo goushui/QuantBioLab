@@ -76,8 +76,8 @@ def AlignmentMatch(sequence, library):
   count = 0
   for s, seq in library.items():
       count+=1
-      print("Checking alignment against sequence ID:", count)
-      score = alignment.local_align(sequence, seq, score=alignment.ScoreParam(10, -5, -7), print_output = False)
+      # print("Checking alignment against sequence ID:", count)
+      score = alignment.fast_local_align(sequence, seq, score=alignment.ScoreParam(10, -5, -7), print_output = False)
       if score[0] > best_score:
           best_score = score[0]
           best_match = s
@@ -127,14 +127,14 @@ def mutate_library(library, mutation_rate=0.01, max_length=250):
      mutated_library[seq_id] = mutated_seq
    return mutated_library
     
-def compute_kmer_agreement_list(db_data, query_data, kmer_sizes = [1,3,5,7,9,11,13,15,17,19]):
+def compute_kmer_agreement_list(db_data, query_data, kmer_sizes = [1,3,5,7,9,11,13,15,17,19], local_align_cache_file = "alignment_matches.npy"):
   kmer_agreement = []
   # store alignment matches and load if stored previously to save time
-  if os.path.exists("alignment_matches.npy"):
-    alignment_matches = numpy.load("alignment_matches.npy", allow_pickle=True).item()
+  if os.path.exists(local_align_cache_file):
+    alignment_matches = numpy.load(local_align_cache_file, allow_pickle=True).item()
   else:
     alignment_matches = compute_alignment_matches(db_data, query_data)
-    numpy.save("alignment_matches.npy", alignment_matches)
+    numpy.save(local_align_cache_file, alignment_matches)
   for kmer_size in kmer_sizes:
     print(kmer_size)
     kmer_matches = compute_kmer_matches(db_data, query_data, K=kmer_size)
@@ -187,9 +187,9 @@ if __name__ == "__main__":
   nanopore_db = mutate_library(db_data, mutation_rate=0.1, max_length=10000)
   nanopore_query = mutate_library(query_data, mutation_rate=0.1, max_length=10000)
   print("Computing kmer agreement...")
-  plot_kmer_agreement(db_data, query_data, filename="kmer_agreement.png")
-  # plot_kmer_agreement(illumina_db, illumina_query, filename="illumina_kmer_agreement.png")
-  # plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore_kmer_agreement.png")
+  # plot_kmer_agreement(db_data, query_data, filename="kmer_agreement.png", local_align_cache_file="full_alignment_matches.npy")
+  # plot_kmer_agreement(illumina_db, illumina_query, filename="illumina_kmer_agreement.png", local_align_cache_file="illumina_alignment_matches.npy")
+  plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore_kmer_agreement.png", local_align_cache_file="nanopore_alignment_matches.npy")
   
   
      

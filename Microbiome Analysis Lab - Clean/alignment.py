@@ -76,6 +76,11 @@ def print_matrix(x, y, A):
         print()
 
 
+def fast_local_align(x, y, score=ScoreParam(10, -5, -7), print_output = False):
+    # use pyalign
+    import pyalign
+
+    return pyalign.local_alignment(x, y).score, None, None
 
 def local_align(x, y, score=ScoreParam(10, -5, -7), print_output = False):
     # Optimized local alignment: minimize attribute lookups, reuse rows, inline match logic
