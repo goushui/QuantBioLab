@@ -71,9 +71,12 @@ def KmerMatch(sequence_kmer_set, library_kmer_set):
 
 
 def AlignmentMatch(sequence, library):
-  best_score = -10000000000
+  best_score = float('-inf')
   best_match = None
+  count = 0
   for s, seq in library.items():
+      count+=1
+      print("Checking alignment against sequence ID:", count)
       score = alignment.local_align(sequence, seq, score=alignment.ScoreParam(10, -5, -7), print_output = False)
       if score[0] > best_score:
           best_score = score[0]
@@ -92,17 +95,20 @@ def split_dataset(data, db_size=200, query_size=50):
 def compute_kmer_matches(db_data, query_data, K=2):
   db_kmers = ConvertLibaryToKmerSets(db_data, K=K)
   query_kmers = ConvertLibaryToKmerSets(query_data, K=K)
-  best_scores = {}
+  best_matches = {}
   for query_id, query_kmer in query_kmers.items():
-    best_kmer_score, _ = KmerMatch(query_kmer, db_kmers)
-    best_scores[query_id] = best_kmer_score
-  return best_scores
+    best_kmer_score, best_kmer_match = KmerMatch(query_kmer, db_kmers)
+    best_matches[query_id] = best_kmer_match
+  return best_matches
 
 def compute_alignment_matches(db_data, query_data):
   db_alignments = {}
+  count =0 
   for query_id, query_seq in query_data.items():
-    best_alignment_score, _ = AlignmentMatch(query_seq, db_data)
-    db_alignments[query_id] = best_alignment_score
+    print(count)
+    count += 1
+    best_alignment_score, best_alignment = AlignmentMatch(query_seq, db_data)
+    db_alignments[query_id] = best_alignment
   return db_alignments
 
 def mutate_sequence(sequence, mutation_rate=0.01, max_length=250):
@@ -123,10 +129,22 @@ def mutate_library(library, mutation_rate=0.01, max_length=250):
     
 def compute_kmer_agreement_list(db_data, query_data, kmer_sizes = [1,3,5,7,9,11,13,15,17,19]):
   kmer_agreement = []
+  # store alignment matches and load if stored previously to save time
+  if os.path.exists("alignment_matches.npy"):
+    alignment_matches = numpy.load("alignment_matches.npy", allow_pickle=True).item()
+  else:
+    alignment_matches = compute_alignment_matches(db_data, query_data)
+    numpy.save("alignment_matches.npy", alignment_matches)
   for kmer_size in kmer_sizes:
     print(kmer_size)
-    kmer_scores = compute_kmer_matches(db_data, query_data, K=kmer_size)
-    kmer_agreement.append(sum(kmer_scores.values()) / len(kmer_scores))
+    kmer_matches = compute_kmer_matches(db_data, query_data, K=kmer_size)
+    match_scores = []
+    for query_id in query_data.keys():
+      if kmer_matches[query_id] == alignment_matches[query_id]:
+        match_scores.append(1.0)
+      else:
+        match_scores.append(0.0)
+    kmer_agreement.append(sum(match_scores) / len(match_scores))
   return kmer_agreement
 
 def plot_kmer_agreement(db_data, query_data, filename):
@@ -170,8 +188,8 @@ if __name__ == "__main__":
   nanopore_query = mutate_library(query_data, mutation_rate=0.1, max_length=10000)
   print("Computing kmer agreement...")
   plot_kmer_agreement(db_data, query_data, filename="kmer_agreement.png")
-  plot_kmer_agreement(illumina_db, illumina_query, filename="illumina_kmer_agreement.png")
-  plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore_kmer_agreement.png")
+  # plot_kmer_agreement(illumina_db, illumina_query, filename="illumina_kmer_agreement.png")
+  # plot_kmer_agreement(nanopore_db, nanopore_query, filename="nanopore_kmer_agreement.png")
   
   
      
